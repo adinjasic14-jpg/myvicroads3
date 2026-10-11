@@ -1,0 +1,1381 @@
+"use client";
+
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import {
+  ChevronLeft, ChevronRight, Eye, EyeOff, Maximize2, TriangleAlert,
+  LogOut, ExternalLink, Camera, Check, RefreshCw, QrCode, Shield,
+  Clock, ShieldCheck, Zap, X,
+} from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+
+/* ----------------------------- types ----------------------------- */
+type Address = { street: string; suburb: string; state: string; postcode: string };
+type UserData = {
+  firstName: string; middleName: string; lastName: string;
+  dateOfBirth: string; licenceNumber: string; licenceExpiry: string;
+  licenceType: string; proficiency: string; issueDate: string;
+  address: Address; facePhoto: string | null; conditions: string;
+  cardNumber: string; licenceStatus: string; hologramEnabled: boolean;
+};
+
+const STORAGE_KEY = "vicRoads_userData";
+
+const DEFAULT_USER: UserData = {
+  firstName: "James", middleName: "Andrew", lastName: "Mitchell",
+  dateOfBirth: "14 Mar 1992", licenceNumber: "078295641", licenceExpiry: "22 Jun 2029",
+  licenceType: "Car", proficiency: "Full", issueDate: "22 Jun 2024",
+  address: { street: "37 COLLINS ST", suburb: "RICHMOND", state: "VIC", postcode: "3121" },
+  facePhoto: null, conditions: "No conditions", cardNumber: "8493021",
+  licenceStatus: "Current", hologramEnabled: true,
+};
+
+const NAVREET_DEMO = {
+  holderKey: "navreet-demo", firstName: "Navreet", middleName: "", lastName: "Kaur",
+  dateOfBirth: "08 Jul 1996", licenceNumber: "90123456", licenceExpiry: "15 MAR 2028",
+  licenceType: "Car", proficiency: "Full", issueDate: "15 MAR 2024",
+  address: { street: "12 SWANSTON ST", suburb: "MELBOURNE", state: "VIC", postcode: "3000" },
+  facePhoto: null, conditions: "No conditions", cardNumber: "5567890",
+  licenceStatus: "Current", hologramEnabled: true,
+};
+
+/* ----------------------------- helpers ----------------------------- */
+const cn = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
+
+const HOME_ICON =
+  "data:image/png;base64,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";
+
+/* ----------------------------- icons ----------------------------- */
+const HomeIcon = ({ className = "" }: { className?: string }) => (
+  <img src={HOME_ICON} alt="Home" width={26} height={26} className={cn(className, "object-contain")} />
+);
+const VehiclesIcon = ({ className = "" }: { className?: string }) => (
+  <img src="/images/nav-vehicles.png" alt="Vehicles" className={cn(className, "object-contain")} />
+);
+const LicenceIcon = ({ className = "" }: { className?: string }) => (
+  <img src="/images/nav-licence.png" alt="Licence" className={cn(className, "object-contain")} />
+);
+const PaymentsIcon = ({ className = "" }: { className?: string }) => (
+  <img src="/images/nav-payments.png" alt="Payments" className={cn(className, "object-contain")} />
+);
+const ProfileIcon = ({ className = "" }: { className?: string }) => (
+  <img src="/images/nav-profile.png" alt="Profile" className={cn(className, "object-contain")} />
+);
+
+/* ----------------------------- Switch ----------------------------- */
+function Switch({ checked, onCheckedChange, "aria-label": ariaLabel }: {
+  checked: boolean; onCheckedChange: (v: boolean) => void; "aria-label"?: string;
+}) {
+  return (
+    <button
+      type="button" role="switch" aria-checked={checked} aria-label={ariaLabel}
+      onClick={() => onCheckedChange(!checked)}
+      className={cn(
+        "relative inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all",
+        checked ? "bg-[#22C55E]" : "bg-gray-300"
+      )}
+    >
+      <span className={cn(
+        "pointer-events-none block size-4 rounded-full bg-white shadow transition-transform",
+        checked ? "translate-x-[calc(100%-2px)]" : "translate-x-0"
+      )} />
+    </button>
+  );
+}
+
+/* ----------------------------- Signature ----------------------------- */
+function Signature({ name, className }: { name: string; className?: string }) {
+  const text = name.split(" ").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
+  return (
+    <span className={className} style={{
+      fontFamily: "'StoryOfLove', cursive", color: "#1C1E21", fontSize: "1.6rem",
+      lineHeight: 1.2, letterSpacing: "0.02em", whiteSpace: "nowrap", display: "inline-block",
+    }}>{text}</span>
+  );
+}
+
+/* ----------------------------- Hologram overlay ----------------------------- */
+function HologramOverlay({ className = "" }: { className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [hasGyro, setHasGyro] = useState(false);
+  const [gyro, setGyro] = useState({ beta: 0, gamma: 0 });
+
+  useEffect(() => {
+    const handler = (e: DeviceOrientationEvent) => setGyro({ beta: e.beta || 0, gamma: e.gamma || 0 });
+    const anyDO = DeviceOrientationEvent as any;
+    if (typeof window !== "undefined" && typeof anyDO?.requestPermission === "function") {
+      anyDO.requestPermission().then((p: string) => {
+        if (p === "granted") window.addEventListener("deviceorientation", handler);
+      }).catch(console.error);
+    } else {
+      window.addEventListener("deviceorientation", handler);
+    }
+    return () => window.removeEventListener("deviceorientation", handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: DeviceOrientationEvent) => {
+      if (e.gamma !== null && e.beta !== null && (Math.abs(e.gamma) > 0.5 || Math.abs(e.beta) > 0.5)) setHasGyro(true);
+    };
+    window.addEventListener("deviceorientation", handler);
+    return () => window.removeEventListener("deviceorientation", handler);
+  }, []);
+
+  useEffect(() => {
+    if (hasGyro) return;
+    const el = ref.current; if (!el) return;
+    const onMove = (e: MouseEvent) => {
+      const r = el.getBoundingClientRect();
+      setTilt({ x: ((e.clientX - r.left) / r.width - 0.5) * 2, y: ((e.clientY - r.top) / r.height - 0.5) * 2 });
+    };
+    const onLeave = () => setTilt({ x: 0, y: 0 });
+    el.addEventListener("mousemove", onMove);
+    el.addEventListener("mouseleave", onLeave);
+    return () => { el.removeEventListener("mousemove", onMove); el.removeEventListener("mouseleave", onLeave); };
+  }, [hasGyro]);
+
+  const t = hasGyro
+    ? { x: Math.max(-1, Math.min(1, (gyro.gamma || 0) / 45)), y: Math.max(-1, Math.min(1, ((gyro.beta || 0) - 45) / 45)) }
+    : tilt;
+
+  const hue = 80 * t.x + 40 * t.y;
+  const bright = 1 + 0.3 * Math.sqrt(t.x * t.x + t.y * t.y);
+  const tx = 4 * t.x, ty = 4 * t.y;
+  const opacity = 0.25 * Math.sqrt(t.x * t.x + t.y * t.y);
+  const px = 50 + 40 * t.x, py = 50 + 40 * t.y;
+  const hl = 0.1 + 0.2 * Math.sqrt(t.x * t.x + t.y * t.y);
+
+  return (
+    <div ref={ref} className={cn("absolute inset-0 overflow-hidden z-10", className)} style={{ pointerEvents: "auto", cursor: "crosshair" }}>
+      <div className="absolute inset-0 pointer-events-none" style={{
+        opacity: 0.55 + opacity, filter: `hue-rotate(${hue}deg) brightness(${bright}) saturate(1.3) contrast(1.05)`,
+        transform: `translate(${tx}px, ${ty}px)`, mixBlendMode: "screen",
+        transition: "filter 0.15s ease-out, opacity 0.15s ease-out, transform 0.1s ease-out",
+      }}>
+        {[{ left: "4%", top: "12%", width: "42%" }, { left: "4%", top: "53%", width: "42%" }, { left: "60%", top: "32%", width: "42%" }].map((p, i) => (
+          <img key={i} src="/images/holo-crest-single.png" alt="" className="absolute pointer-events-none"
+            style={{ left: p.left, top: p.top, width: p.width, height: "auto", objectFit: "contain" }} />
+        ))}
+      </div>
+      <div className="absolute inset-0 pointer-events-none" style={{
+        background: `linear-gradient(${125 + 35 * t.x}deg, rgba(120,190,255,0) 0%, rgba(120,190,255,${0.05 + 0.07 * Math.abs(t.x)}) 18%, rgba(180,120,255,${0.04 + 0.06 * Math.abs(t.y)}) 36%, rgba(255,120,180,${0.03 + 0.05 * Math.abs(t.x)}) 54%, rgba(120,255,180,${0.04 + 0.06 * Math.abs(t.y)}) 72%, rgba(255,220,80,${0.03 + 0.04 * Math.abs(t.x)}) 88%, rgba(120,190,255,0) 100%)`,
+        mixBlendMode: "color-dodge", transition: "background 0.15s ease-out",
+      }} />
+      <div className="absolute inset-0 pointer-events-none" style={{
+        background: `radial-gradient(ellipse at ${px}% ${py}%, rgba(255,255,255,${hl}) 0%, rgba(255,255,255,${0.3 * hl}) 28%, transparent 58%)`,
+        mixBlendMode: "overlay", transition: "background 0.1s ease-out",
+      }} />
+    </div>
+  );
+}
+
+/* ----------------------------- Phone wrapper ----------------------------- */
+function PhoneFrame({ children, statusBarBg = "bg-[#E8ECEF]", statusBarText = "text-black", time = "1:30" }: {
+  children: React.ReactNode; statusBarBg?: string; statusBarText?: string; time?: string;
+}) {
+  return (
+    <>
+      <div className="flex flex-col h-[100dvh] w-full sm:hidden">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide phone-scroll relative">{children}</div>
+      </div>
+      <div className="hidden sm:flex min-h-screen bg-gray-100 items-center justify-center p-4">
+        <div className="relative">
+          <div className="relative bg-[#1a1a1a] rounded-[3rem] p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_25px_60px_-12px_rgba(0,0,0,0.4),0_8px_24px_-4px_rgba(0,0,0,0.3)]">
+            <div className="absolute right-[-3px] top-28 w-[3px] h-12 bg-[#2a2a2a] rounded-r-sm" />
+            <div className="absolute left-[-3px] top-24 w-[3px] h-8 bg-[#2a2a2a] rounded-l-sm" />
+            <div className="absolute left-[-3px] top-36 w-[3px] h-8 bg-[#2a2a2a] rounded-l-sm" />
+            <div className="relative bg-black rounded-[2.5rem] overflow-hidden">
+              <div className="relative">
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 w-[90px] h-[28px] bg-black rounded-full z-20" />
+                <div className={cn(statusBarBg, "px-6 pt-3 pb-1 flex justify-between items-center relative z-10")}>
+                  <span className={cn("text-sm font-semibold", statusBarText)}>{time}</span>
+                  <div className="flex items-center gap-1">
+                    <svg className={cn("w-4 h-4", statusBarText)} viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C7.46 3 3.34 4.78.29 7.67c-.18.18-.29.43-.29.71 0 .28.11.53.29.71l2.48 2.48c.18.18.43.29.71.29.27 0 .52-.11.7-.28.79-.74 1.69-1.36 2.66-1.85.33-.16.56-.5.56-.9v-3.1c1.45-.48 3-.73 4.6-.73s3.15.25 4.6.73v3.1c0 .39.23.74.56.9.98.49 1.87 1.12 2.67 1.85.18.18.43.28.7.28.28 0 .53-.11.71-.29l2.48-2.48c.18-.18.29-.43.29-.71 0-.28-.11-.53-.29-.71C20.66 4.78 16.54 3 12 3z" /></svg>
+                    <span className={cn("text-xs font-medium", statusBarText)}>4G</span>
+                    <svg className={cn("w-6 h-3.5", statusBarText)} viewBox="0 0 28 14" fill="currentColor">
+                      <rect x="0" y="0" width="24" height="14" rx="3" stroke="currentColor" strokeWidth="1" fill="none" />
+                      <rect x="2" y="2" width="18" height="10" rx="1" fill="currentColor" />
+                      <rect x="25" y="4" width="2" height="6" rx="1" fill="currentColor" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <div className="w-[375px] h-[750px] overflow-y-auto overflow-x-hidden scrollbar-hide phone-scroll relative bg-white">{children}</div>
+              <div className="bg-white py-2 flex justify-center"><div className="w-32 h-1 bg-black rounded-full" /></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ----------------------------- Login (PIN) ----------------------------- */
+function Login({ onLogin }: { onLogin: () => void }) {
+  const [pin, setPin] = useState("");
+  const [bio, setBio] = useState<"visible" | "dismissing" | "hidden">("visible");
+
+  const press = (key: string) => {
+    if (key === "forgot") return;
+    if (key === "back") return setPin((p) => p.slice(0, -1));
+    if (pin.length >= 6) return;
+    const next = pin + key;
+    setPin(next);
+    if (next.length === 6) setTimeout(onLogin, 250);
+  };
+
+  return (
+    <div className="h-full bg-[#F7F7F7] flex flex-col relative">
+      <style>{`
+        @keyframes biometricExit { 0%{opacity:1;transform:translateY(0) scale(1);} 40%{opacity:.8;transform:translateY(8px) scale(.98);} 100%{opacity:0;transform:translateY(40px) scale(.92);} }
+      `}</style>
+      <div className="flex-1" />
+      <div className="flex justify-center pt-4 pb-2 animate-logo-in">
+        <svg width="108" height="135" viewBox="0 0 48 60" fill="none">
+          <path d="M14 24 V18 C14 8, 34 8, 34 18 V24" stroke="#63B530" strokeWidth="5" strokeLinecap="round" fill="none" />
+          <rect x="8" y="22" width="32" height="30" rx="6" fill="#63B530" />
+          <circle cx="24" cy="33" r="4" fill="#222222" />
+          <path d="M22 36 L22 44 L26 44 L26 36 Z" fill="#222222" />
+          <path d="M20 38 L28 38 L26.5 44 L21.5 44 Z" fill="#222222" />
+        </svg>
+      </div>
+      <div className="flex items-center justify-center px-8 mb-5 animate-fade-in">
+        <p className="text-[#222222] text-base font-bold text-center leading-snug">Please enter your existing<br />PIN code</p>
+      </div>
+      <div className="flex justify-center gap-4 mb-5 animate-slide-up">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className={cn("w-[14px] h-[14px] rounded-full transition-all duration-250", i < pin.length ? "bg-[#333333]" : "bg-transparent border-2 border-[#CCCCCC]")} />
+        ))}
+      </div>
+      <div className="h-[60px]" />
+
+      {bio !== "hidden" && (
+        <div key={bio} className="absolute left-5 right-5 bg-white rounded-2xl px-5 py-3 shadow-float z-20 animate-modal-in" style={{ bottom: 290 }}>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <img src="/images/logo.png" alt="myVicRoads" className="h-21 object-contain" />
+          </div>
+          <h2 className="text-[#333333] text-base font-semibold text-center mb-1">Login with biometrics</h2>
+          <p className="text-[#999999] text-[13px] text-center mb-3">Scan your fingerprint.</p>
+          <button onClick={() => setBio("dismissing")} className="block mx-auto text-[#002B49] font-semibold text-sm btn-press underline underline-offset-4 decoration-[#002B49]/30 hover:decoration-[#002B49] transition-colors">Use PIN instead</button>
+        </div>
+      )}
+
+      {bio !== "hidden" && (
+        <div className={cn("absolute left-0 right-0 flex justify-center z-30", bio === "dismissing" && "pointer-events-none")}
+          style={{ bottom: 150, ...(bio === "dismissing" ? { animation: "biometricExit 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards" } : {}) }}>
+          <div className={cn("w-16 h-16 bg-white rounded-full flex items-center justify-center relative shadow-float", bio === "visible" && "animate-fingerprint-pulse")}>
+            <svg viewBox="0 0 24 24" className="w-8 h-8 text-[#333333]" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M12 10v4m0 0c0 1.5-1 3-3 4m3-4c0 1.5 1 3 3 4M7 14c0-3 2-5 5-5s5 2 5 5M4 12c0-5 4-8 8-8s8 3 8 8m-8-5c-2 0-4 1.5-4 4" strokeLinecap="round" />
+            </svg>
+            {bio === "visible" && (
+              <>
+                <div className="absolute inset-0 rounded-full border-2 border-[#333333]/15 animate-fingerprint-ripple" />
+                <div className="absolute inset-0 rounded-full border border-[#333333]/8 animate-fingerprint-ripple-2" />
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className={cn(bio !== "hidden" ? "pt-[220px] pb-4" : "pb-4")}>
+        <div className="px-8">
+          {[["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["forgot", "0", "back"]].map((row, ri) => (
+            <div key={ri} className="flex justify-center gap-5 mb-3">
+              {row.map((key) =>
+                key === "forgot" ? (
+                  <button key={key} onClick={() => press(key)} className="w-[72px] h-[56px] flex items-center justify-center text-[13px] text-[#999999] font-normal btn-press">Forgot?</button>
+                ) : key === "back" ? (
+                  <button key={key} onClick={() => press(key)} className="w-[72px] h-[56px] flex items-center justify-center btn-press">
+                    <div className="w-9 h-9 bg-[#333333] rounded-full flex items-center justify-center">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                    </div>
+                  </button>
+                ) : (
+                  <button key={key} onClick={() => press(key)} className="w-[72px] h-[56px] flex items-center justify-center text-2xl font-normal text-[#333333] btn-press active:bg-gray-100 rounded-2xl transition-colors duration-150">{key}</button>
+                )
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-center mt-1 mb-2"><p className="text-[10px] text-[#BBBBBB] font-normal tracking-wide">Secured by Knox</p></div>
+        <div className="flex justify-center pb-1"><div className="w-32 h-1 bg-[#DDDDDD] rounded-full" /></div>
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------- Bottom nav ----------------------------- */
+function BottomNav({ activeTab, onTabChange }: { activeTab: string; onTabChange: (t: string) => void }) {
+  const tabs = [
+    { id: "home", label: "Home", Icon: HomeIcon },
+    { id: "vehicles", label: "Vehicles", Icon: VehiclesIcon },
+    { id: "licence", label: "Licence", Icon: LicenceIcon },
+    { id: "payments", label: "Payments", Icon: PaymentsIcon },
+    { id: "profile", label: "Profile", Icon: ProfileIcon },
+  ];
+  return (
+    <div className="bg-white/95 backdrop-blur-lg border-t border-gray-200/60 z-40 shrink-0">
+      <div className="flex justify-around items-center px-1 py-1.5">
+        {tabs.map((t) => {
+          const active = activeTab === t.id;
+          const Icon = t.Icon;
+          return (
+            <button key={t.id} onClick={() => onTabChange(t.id)} aria-label={t.label} aria-current={active ? "page" : undefined}
+              className="flex flex-col items-center justify-center gap-1 px-2 py-1 relative btn-press rounded-xl min-w-[56px]">
+              <div className={cn("rounded-full flex items-center justify-center transition-all duration-300 w-11 h-11", active && "bg-gray-200")}>
+                {t.id === "home"
+                  ? <Icon className="w-[24px] h-[24px]" />
+                  : <Icon className={cn("h-[26px] w-[26px] text-black", active && "animate-tab-bounce")} />}
+              </div>
+              <span className={cn("text-[11px] leading-tight", active ? "text-[#22C55E] font-semibold" : "text-black font-normal")}>{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex justify-center pb-1 pt-0.5"><div className="w-32 h-1 bg-black/10 rounded-full" /></div>
+    </div>
+  );
+}
+
+/* ----------------------------- Home ----------------------------- */
+function Home({ onNavigate, activeTab, onTabChange, userData }: {
+  onNavigate: (s: string) => void; activeTab: string; onTabChange: (t: string) => void; userData: UserData;
+}) {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  return (
+    <div className="h-full bg-[#E8ECEF] flex flex-col relative">
+      <div className="flex-1 overflow-y-auto phone-scroll">
+        <div className="px-6 pt-6 pb-2 animate-slide-up">
+          <p className="text-sm text-gray-500 font-medium">{greeting}</p>
+          <h1 className="text-3xl font-bold text-[#1C1E21]">{userData.firstName}</h1>
+        </div>
+        <div className="px-4 space-y-3">
+          <button onClick={() => onNavigate("demerit-points")} className="w-full bg-white rounded-2xl p-5 text-left animate-card-enter stagger-2 card-press shadow-card">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-6 h-0.5 bg-gray-400 rounded" />
+                  <div className="w-3.5 h-3.5 border-2 border-[#22C55E] rounded-full bg-white ml-[-4px]" />
+                </div>
+              </div>
+              <p className="text-base font-semibold text-[#1C1E21]">Demerit points balance</p>
+            </div>
+          </button>
+          <button className="w-full bg-white rounded-2xl p-5 text-left animate-card-enter stagger-3 card-press shadow-card">
+            <div className="flex items-center gap-1 mb-3">
+              <img src="/images/registered-vehicle.png" alt="Registered vehicles" className="w-9 h-9 object-contain" />
+              <svg viewBox="0 0 24 24" className="w-5 h-5 text-[#22C55E]" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" /></svg>
+            </div>
+            <p className="text-base font-semibold text-[#1C1E21]">Registered vehicles</p>
+          </button>
+        </div>
+        <div className="absolute bottom-[76px] left-4 right-4 z-10 animate-card-enter stagger-4">
+          <button onClick={() => onNavigate("licence-details")} className="w-full bg-gradient-to-br from-[#3D4955] to-[#2C3640] rounded-2xl p-5 text-left card-press shadow-glow-navy">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-white font-semibold text-lg">My licence</p>
+                <p className="text-gray-400 text-sm">Tap to view licence</p>
+              </div>
+              <Maximize2 className="w-5 h-5 text-white" />
+            </div>
+          </button>
+        </div>
+      </div>
+      <BottomNav activeTab={activeTab} onTabChange={onTabChange} />
+    </div>
+  );
+}
+
+/* ----------------------------- Licence tab ----------------------------- */
+function LicenceTab({ onNavigate, activeTab, onTabChange }: {
+  onNavigate: (s: string) => void; activeTab: string; onTabChange: (t: string) => void;
+}) {
+  const items = [
+    { label: "View demerit points", subtitle: undefined as string | undefined, navigate: "demerit-points" },
+    { label: "Manage licence renewal", subtitle: "Renew your licence when it's due", navigate: undefined },
+    { label: "Order driver history report", subtitle: undefined, navigate: undefined },
+    { label: "Update address on licence", subtitle: undefined, navigate: undefined },
+    { label: "Access myLearners", subtitle: undefined, navigate: undefined },
+    { label: "Replace licence", subtitle: undefined, navigate: undefined },
+  ];
+  return (
+    <div className="h-full bg-[#E8ECEF] flex flex-col">
+      <div className="flex-1 overflow-y-auto phone-scroll">
+        <div className="px-6 pt-6 pb-4 animate-slide-up"><h1 className="text-3xl font-bold text-[#1C1E21]">Licence</h1></div>
+        <div className="px-4 mb-3 animate-card-enter stagger-1">
+          <button onClick={() => onNavigate("licence-details")} className="w-full bg-gradient-to-br from-[#4A5568] to-[#2D3748] rounded-2xl p-5 text-left h-44 card-press shadow-glow-navy">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-white font-semibold text-lg">My licence</p>
+                <p className="text-gray-400 text-sm">Tap to view licence</p>
+              </div>
+              <Maximize2 className="w-5 h-5 text-white" />
+            </div>
+          </button>
+        </div>
+        <div className="px-4 mb-3 animate-card-enter stagger-2">
+          <div className="bg-white rounded-2xl overflow-hidden shadow-card">
+            {items.map((item, i) => (
+              <button key={i} onClick={() => item.navigate && onNavigate(item.navigate)}
+                className={cn("w-full px-5 py-4 text-left flex justify-between items-center row-press", i < items.length - 1 && "border-b border-gray-100")}>
+                <div>
+                  <p className="text-[#1C1E21]">{item.label}</p>
+                  {item.subtitle && <p className="text-gray-500 text-sm">{item.subtitle}</p>}
+                </div>
+                {item.navigate && <ChevronRight className="w-5 h-5 text-gray-400" />}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="px-4 mb-3 animate-card-enter stagger-3">
+          <button onClick={() => onNavigate("verify-licence")} className="w-full bg-white rounded-2xl p-5 text-left flex items-center gap-3 card-press shadow-card">
+            <div className="grid grid-cols-2 gap-0.5">
+              <div className="w-2 h-2 bg-gray-600 rounded-sm" /><div className="w-2 h-2 bg-gray-600 rounded-sm" />
+              <div className="w-2 h-2 bg-gray-600 rounded-sm" /><div className="w-2 h-2 bg-gray-600 rounded-sm" />
+            </div>
+            <p className="text-[#1C1E21] font-medium">Verify someone&apos;s licence</p>
+          </button>
+        </div>
+      </div>
+      <BottomNav activeTab={activeTab} onTabChange={onTabChange} />
+    </div>
+  );
+}
+
+/* ----------------------------- Profile ----------------------------- */
+function Profile({ onLogout, activeTab, onTabChange, onNavigate }: {
+  onLogout: () => void; activeTab: string; onTabChange: (t: string) => void; onNavigate: (s: string) => void;
+}) {
+  return (
+    <div className="h-full bg-[#E8ECEF] flex flex-col">
+      <div className="flex-1 overflow-y-auto phone-scroll">
+        <div className="px-6 pt-6 pb-4 animate-slide-up"><h1 className="text-3xl font-bold text-[#1C1E21]">Profile</h1></div>
+        <div className="px-4 mb-3 animate-card-enter stagger-1">
+          <div className="bg-white rounded-2xl overflow-hidden shadow-card">
+            <button onClick={() => onNavigate("edit-profile")} className="w-full px-5 py-4 text-left flex justify-between items-center row-press">
+              <p className="text-[#1C1E21]">Personal information</p>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </button>
+            {["Addresses", "Security settings", "Passkey settings"].map((label, i) => (
+              <button key={i} className="w-full px-5 py-4 text-left flex justify-between items-center border-t border-gray-100 row-press">
+                <p className="text-[#1C1E21]">{label}</p>
+                {i === 2 && <ChevronRight className="w-5 h-5 text-gray-400" />}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="px-4 mb-3 animate-card-enter stagger-2">
+          <div className="bg-white rounded-2xl overflow-hidden shadow-card">
+            <div className="px-5 py-4"><p className="text-[#1C1E21] font-semibold">App controls</p></div>
+            <button className="w-full px-5 py-4 text-left flex justify-between items-center border-t border-gray-100 row-press">
+              <div>
+                <p className="text-[#1C1E21]">Biometrics and settings</p>
+                <p className="text-gray-500 text-sm">Enable biometrics and deactivate card or account</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </button>
+            <button className="w-full px-5 py-4 text-left flex justify-between items-center border-t border-gray-100 row-press">
+              <p className="text-[#1C1E21]">Help and info</p>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </button>
+            <button className="w-full px-5 py-4 text-left flex justify-between items-center border-t border-gray-100 row-press">
+              <p className="text-[#1C1E21]">Provide app feedback</p>
+              <ExternalLink className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+        </div>
+        <div className="px-4 animate-card-enter stagger-3">
+          <button onClick={onLogout} className="w-full bg-white rounded-2xl p-5 text-left flex items-center gap-3 card-press shadow-card">
+            <LogOut className="w-5 h-5 text-gray-600" />
+            <p className="text-[#1C1E21] font-medium">Log out</p>
+          </button>
+        </div>
+      </div>
+      <BottomNav activeTab={activeTab} onTabChange={onTabChange} />
+    </div>
+  );
+}
+
+/* ----------------------------- Demerit points ----------------------------- */
+function DemeritPoints({ onBack }: { onBack: () => void }) {
+  const offences = [
+    { name: "Exceed speed limit by less than 10km/h", date: "14 Nov 2024", points: -1 },
+    { name: "Fail to obey traffic light", date: "03 Aug 2022", points: -3 },
+    { name: "Exceed speed limit by 10–25 km/h", date: "21 Jan 2021", points: -3 },
+  ];
+  return (
+    <div className="h-full bg-white flex flex-col">
+      <header className="flex items-center px-4 py-3 bg-white animate-header-in shrink-0">
+        <button onClick={onBack} className="p-2 -ml-2 btn-press"><ChevronLeft className="h-6 w-6 text-gray-700" /></button>
+        <h1 className="flex-1 text-center text-lg font-semibold text-gray-900">Demerit points</h1>
+        <div className="w-10" />
+      </header>
+      <div className="flex-1 overflow-y-auto phone-scroll">
+        <div className="px-4 pt-4 animate-card-enter stagger-1">
+          <div className="bg-[#F3F4F6] rounded-2xl p-6 relative overflow-hidden shadow-card">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/60 via-transparent to-transparent pointer-events-none" />
+            <p className="text-[11px] font-semibold tracking-[0.12em] text-gray-400 uppercase mb-3 relative z-10">Active Demerit Points</p>
+            <p className="text-[72px] font-extrabold leading-none text-[#2D3748] relative z-10 animate-number-pop" style={{ letterSpacing: "-0.03em" }}>0</p>
+            <div className="mt-3 relative z-10">
+              <div className="h-2 bg-gray-200 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-1000 ease-out bg-[#22C55E]" style={{ width: "2%" }} /></div>
+              <div className="flex justify-between mt-1.5">
+                <span className="text-[11px] text-gray-400">0</span>
+                <span className="text-[11px] text-gray-400">12 points threshold</span>
+              </div>
+            </div>
+            <p className="text-[15px] text-[#4B5563] mt-2 relative z-10">You have no active demerit points</p>
+            <p className="text-[12px] text-gray-400 italic mt-4 relative z-10">Demerit points remain active for 4 years from the date of the offence.</p>
+          </div>
+        </div>
+        <div className="px-4 pt-5 pb-8 animate-card-enter stagger-2">
+          <h2 className="text-[17px] font-bold text-[#1C1E21] mb-3">Offence history</h2>
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-card-elevated">
+            {offences.map((o, i) => (
+              <div key={i} className={cn("px-5 py-4 flex justify-between items-center", i > 0 && "border-t border-gray-100")}>
+                <div>
+                  <p className="text-[#1C1E21] text-sm font-medium">{o.name}</p>
+                  <p className="text-gray-500 text-xs mt-0.5">{o.date}</p>
+                </div>
+                <span className="text-[#DC2626] font-semibold">{o.points}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------- Add / Edit Licence ----------------------------- */
+function AddEditLicence({ onBack, userData, onSave }: {
+  onBack: () => void; userData: UserData; onSave: (patch: Partial<UserData>) => void;
+}) {
+  const [form, setForm] = useState({
+    firstName: userData.firstName, middleName: userData.middleName, lastName: userData.lastName,
+    dateOfBirth: userData.dateOfBirth, licenceNumber: userData.licenceNumber, issueDate: userData.issueDate,
+    licenceExpiry: userData.licenceExpiry, licenceType: userData.licenceType, proficiency: userData.proficiency,
+    licenceStatus: userData.licenceStatus, conditions: userData.conditions, cardNumber: userData.cardNumber,
+    street: userData.address.street, suburb: userData.address.suburb, state: userData.address.state, postcode: userData.address.postcode,
+  });
+  const [photo, setPhoto] = useState<string | null>(userData.facePhoto);
+  const [saved, setSaved] = useState(false);
+  const [hologram, setHologram] = useState(userData.hologramEnabled !== false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleSave = () => {
+    setSaved(true);
+    setTimeout(() => {
+      onSave({
+        firstName: form.firstName, middleName: form.middleName, lastName: form.lastName,
+        dateOfBirth: form.dateOfBirth, licenceNumber: form.licenceNumber, issueDate: form.issueDate,
+        licenceExpiry: form.licenceExpiry, licenceType: form.licenceType, proficiency: form.proficiency,
+        licenceStatus: form.licenceStatus, conditions: form.conditions, cardNumber: form.cardNumber,
+        address: { street: form.street, suburb: form.suburb, state: form.state, postcode: form.postcode },
+        facePhoto: photo, hologramEnabled: hologram,
+      });
+      onBack();
+    }, 300);
+  };
+
+  const input = "w-full px-3 py-2.5 bg-gray-50 rounded-lg text-[15px] text-gray-900 border border-gray-200 focus:outline-none focus:border-[#22C55E] input-focus-transition";
+  const label = "text-xs text-gray-500 mb-1 block";
+
+  return (
+    <div className="h-full bg-[#E8ECEF]">
+      <header className="flex items-center px-4 py-3 bg-[#E8ECEF] animate-header-in">
+        <button onClick={onBack} className="p-2 -ml-2 btn-press"><ChevronLeft className="h-6 w-6 text-gray-700" /></button>
+        <h1 className="flex-1 text-center text-lg font-semibold text-gray-900">Add / Edit Licence</h1>
+        <button onClick={handleSave} className={cn("p-2 -mr-2 btn-press", saved && "animate-success-pop")}><Check className="h-6 w-6 text-[#22C55E]" /></button>
+      </header>
+      <div className="px-4 pb-8 overflow-y-auto phone-scroll" style={{ height: "calc(100% - 56px)" }}>
+        <div className="mb-6 animate-form-section">
+          <p className="text-sm font-medium text-gray-700 mb-3">Face Photo</p>
+          <div className="flex justify-center">
+            <button onClick={() => fileRef.current?.click()}
+              className="w-32 h-32 bg-white rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center overflow-hidden transition-all duration-200 hover:border-[#22C55E] hover:shadow-glow-green">
+              {photo ? <img src={photo} alt="Face" className="w-full h-full object-cover" /> : (
+                <><Camera className="w-8 h-8 text-gray-400 mb-2" /><span className="text-xs text-gray-500">Upload Photo</span></>
+              )}
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onloadend = () => setPhoto(r.result as string); r.readAsDataURL(f); } }} />
+          </div>
+          <div className="mt-4 flex items-center justify-between bg-white rounded-xl border border-gray-200 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-gray-900">Security hologram</p>
+              <p className="text-xs text-gray-500">Show the tilt-reactive coat-of-arms overlay on the licence photo.</p>
+            </div>
+            <Switch checked={hologram} onCheckedChange={setHologram} aria-label="Toggle security hologram" />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 mb-4 animate-form-section stagger-1 shadow-card">
+          <p className="text-sm font-semibold text-[#002B49] mb-4">Personal Details</p>
+          <div className="space-y-4">
+            <div><label className={label}>First Name</label><input className={input} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></div>
+            <div><label className={label}>Middle Name</label><input className={input} value={form.middleName} onChange={(e) => setForm({ ...form, middleName: e.target.value })} /></div>
+            <div><label className={label}>Last Name</label><input className={input} value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></div>
+            <div><label className={label}>Date of Birth</label><input className={input} placeholder="DD MMM YYYY" value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} /></div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 mb-4 animate-form-section stagger-2 shadow-card">
+          <p className="text-sm font-semibold text-[#002B49] mb-4">Licence Details</p>
+          <div className="space-y-4">
+            <div><label className={label}>Licence Number</label><input className={input} value={form.licenceNumber} onChange={(e) => setForm({ ...form, licenceNumber: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className={label}>Issue Date</label><input className={input} placeholder="DD MMM YYYY" value={form.issueDate} onChange={(e) => setForm({ ...form, issueDate: e.target.value })} /></div>
+              <div><label className={label}>Expiry Date</label><input className={input} placeholder="DD MMM YYYY" value={form.licenceExpiry} onChange={(e) => setForm({ ...form, licenceExpiry: e.target.value })} /></div>
+            </div>
+            <div><label className={label}>Licence Type</label><input className={input} value={form.licenceType} onChange={(e) => setForm({ ...form, licenceType: e.target.value })} /></div>
+            <div><label className={label}>Proficiency</label><input className={input} value={form.proficiency} onChange={(e) => setForm({ ...form, proficiency: e.target.value })} /></div>
+            <div>
+              <label className={label}>Licence Status</label>
+              <select className={input} value={form.licenceStatus} onChange={(e) => setForm({ ...form, licenceStatus: e.target.value })}>
+                <option>Current</option><option>Suspended</option><option>Expired</option><option>Cancelled</option>
+              </select>
+            </div>
+            <div><label className={label}>Conditions</label><input className={input} placeholder="No conditions" value={form.conditions} onChange={(e) => setForm({ ...form, conditions: e.target.value })} /></div>
+            <div><label className={label}>Card Number</label><input className={input} value={form.cardNumber} onChange={(e) => setForm({ ...form, cardNumber: e.target.value })} /></div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 mb-4 animate-form-section stagger-3 shadow-card">
+          <p className="text-sm font-semibold text-[#002B49] mb-4">Address</p>
+          <div className="space-y-4">
+            <div><label className={label}>Street Address</label><input className={input} value={form.street} onChange={(e) => setForm({ ...form, street: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className={label}>Suburb</label><input className={input} value={form.suburb} onChange={(e) => setForm({ ...form, suburb: e.target.value })} /></div>
+              <div><label className={label}>State</label><input className={input} value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} /></div>
+            </div>
+            <div><label className={label}>Postcode</label><input className={input} value={form.postcode} onChange={(e) => setForm({ ...form, postcode: e.target.value })} /></div>
+          </div>
+        </div>
+
+        <button onClick={handleSave} className="w-full bg-[#22C55E] text-white font-semibold py-4 rounded-2xl btn-primary-green">Save Licence Details</button>
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------- Edit personal info ----------------------------- */
+function EditProfile({ onBack, userData, onSave }: {
+  onBack: () => void; userData: UserData; onSave: (patch: Partial<UserData>) => void;
+}) {
+  const [form, setForm] = useState({
+    firstName: userData.firstName, middleName: userData.middleName, lastName: userData.lastName,
+    dateOfBirth: userData.dateOfBirth, street: userData.address.street, suburb: userData.address.suburb,
+    state: userData.address.state, postcode: userData.address.postcode,
+  });
+  const [saved, setSaved] = useState(false);
+  const handleSave = () => {
+    setSaved(true);
+    setTimeout(() => {
+      onSave({ firstName: form.firstName, middleName: form.middleName, lastName: form.lastName, dateOfBirth: form.dateOfBirth, address: { street: form.street, suburb: form.suburb, state: form.state, postcode: form.postcode } });
+      onBack();
+    }, 300);
+  };
+  const input = "w-full px-3 py-2.5 bg-gray-50 rounded-lg text-[15px] text-gray-900 border border-gray-200 focus:outline-none focus:border-[#22C55E] input-focus-transition";
+  const label = "text-xs text-gray-500 mb-1 block";
+  return (
+    <div className="h-full bg-[#E8ECEF]">
+      <header className="flex items-center px-4 py-3 bg-[#E8ECEF] animate-header-in">
+        <button onClick={onBack} className="p-2 -ml-2 btn-press"><ChevronLeft className="h-6 w-6 text-gray-700" /></button>
+        <h1 className="flex-1 text-center text-lg font-semibold text-gray-900">Edit Personal Information</h1>
+        <button onClick={handleSave} className={cn("p-2 -mr-2 btn-press", saved && "animate-success-pop")}><Check className="h-6 w-6 text-[#22C55E]" /></button>
+      </header>
+      <div className="px-4 pb-8 overflow-y-auto phone-scroll" style={{ height: "calc(100% - 56px)" }}>
+        <div className="bg-white rounded-2xl p-4 mb-4 animate-form-section stagger-1 shadow-card">
+          <p className="text-sm font-semibold text-[#002B49] mb-4">Personal Details</p>
+          <div className="space-y-4">
+            <div><label className={label}>First Name</label><input className={input} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></div>
+            <div><label className={label}>Middle Name</label><input className={input} value={form.middleName} onChange={(e) => setForm({ ...form, middleName: e.target.value })} /></div>
+            <div><label className={label}>Last Name</label><input className={input} value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></div>
+            <div><label className={label}>Date of Birth</label><input className={input} placeholder="DD MMM YYYY" value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} /></div>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl p-4 mb-4 animate-form-section stagger-2 shadow-card">
+          <p className="text-sm font-semibold text-[#002B49] mb-4">Address</p>
+          <div className="space-y-4">
+            <div><label className={label}>Street Address</label><input className={input} value={form.street} onChange={(e) => setForm({ ...form, street: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className={label}>Suburb</label><input className={input} value={form.suburb} onChange={(e) => setForm({ ...form, suburb: e.target.value })} /></div>
+              <div><label className={label}>State</label><input className={input} value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} /></div>
+            </div>
+            <div><label className={label}>Postcode</label><input className={input} value={form.postcode} onChange={(e) => setForm({ ...form, postcode: e.target.value })} /></div>
+          </div>
+        </div>
+        <button onClick={handleSave} className="w-full bg-[#22C55E] text-white font-semibold py-4 rounded-2xl btn-primary-green">Save Changes</button>
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------- Licence details (with tap-to-change photo) ----------------------------- */
+function LicenceDetails({ onBack, userData, holderId, onPhotoChange }: {
+  onBack: () => void; userData: UserData; holderId: string | null; onPhotoChange: (url: string) => void;
+}) {
+  const [tab, setTab] = useState<"licence" | "identity" | "age">("licence");
+  const [showCardNumber, setShowCardNumber] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+  const [seed, setSeed] = useState(() => Math.random().toString(36).substring(2, 15));
+  const [lastRefreshed, setLastRefreshed] = useState(() => new Date());
+  const [countdown, setCountdown] = useState(120);
+  const [refreshing, setRefreshing] = useState(false);
+  const [expired, setExpired] = useState(false);
+  const [expandedQR, setExpandedQR] = useState(false);
+  const [showBarcode, setShowBarcode] = useState(false);
+  const [minting, setMinting] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const fullName = `${userData.firstName} ${userData.middleName ? userData.middleName + " " : ""}${userData.lastName}`.toUpperCase();
+  const suspended = userData.licenceStatus === "Suspended";
+
+  useEffect(() => {
+    if (!showQR) return;
+    setCountdown(120); setExpired(false);
+    const t = setInterval(() => {
+      setCountdown((c) => { if (c <= 1) { setExpired(true); clearInterval(t); return 0; } return c - 1; });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [showQR, seed]);
+
+  const refresh = useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => { setLastRefreshed(new Date()); setSeed(Math.random().toString(36).substring(2, 15)); setShowQR(false); setExpired(false); setRefreshing(false); }, 600);
+  }, []);
+
+  const mintQR = useCallback(async (mode: string) => {
+    if (!holderId) { setError("Your holder record is not ready yet — try again in a moment."); return; }
+    setMinting(true); setError(null);
+    try {
+      const res = await fetch("/api/token", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ holderId, mode }) });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); setError(e?.error || "Failed to mint verification token"); return; }
+      const data = await res.json();
+      if (!data?.token) { setError("Failed to mint verification token"); return; }
+      setToken(data.token); setSeed(Math.random().toString(36).substring(2, 15)); setShowQR(true);
+    } catch { setError("Failed to mint verification token"); } finally { setMinting(false); }
+  }, [holderId]);
+
+  const qrValue = token || JSON.stringify({ v: "DDL-VIC-1.0", lic: userData.licenceNumber, name: fullName, status: userData.licenceStatus, ts: lastRefreshed.toISOString(), seed });
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+
+  const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => onPhotoChange(reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const formatRefreshed = () => {
+    const d = lastRefreshed;
+    return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()]} ${d.getDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()]} ${d.getFullYear()} ${d.getHours() % 12 || 12}:${d.getMinutes().toString().padStart(2, "0")}${d.getHours() >= 12 ? "pm" : "am"}`;
+  };
+
+  /* expanded QR view */
+  if (expandedQR) {
+    return (
+      <div className="bg-white h-full flex flex-col animate-fade-in">
+        <div className="flex items-center px-4 py-3 border-b border-gray-100">
+          <div className="w-12" />
+          <h1 className="flex-1 text-center text-lg font-semibold text-gray-900">Verify Licence</h1>
+          <button onClick={() => { setExpandedQR(false); setShowQR(false); setExpired(false); }} className="w-12 text-right text-gray-900 font-medium text-base btn-press">Close</button>
+        </div>
+        <div className="flex-1 overflow-y-auto scrollbar-hide">
+          <div className="flex flex-col items-center px-6 pt-8 pb-6">
+            <div className={cn("relative", expired && "opacity-30")}>
+              <QRCodeSVG value={qrValue} size={280} level="M" bgColor="#FFFFFF" fgColor="#002B49" />
+              {expired && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white/80 rounded">
+                  <div className="text-center">
+                    <X className="h-8 w-8 text-[#DC2626] mx-auto mb-2" />
+                    <p className="text-sm text-[#DC2626] font-semibold">Code expired</p>
+                    <button onClick={() => { setSeed(Math.random().toString(36).substring(2, 15)); setExpired(false); }} className="mt-2 text-xs text-[#002B49] font-medium flex items-center gap-1 mx-auto">
+                      <RefreshCw className="h-3 w-3" /> Refresh
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 mt-5">
+              {expired
+                ? <button onClick={() => { setSeed(Math.random().toString(36).substring(2, 15)); setExpired(false); }} className="text-sm text-[#002B49] font-medium flex items-center gap-1"><RefreshCw className="h-4 w-4" /> Refresh code</button>
+                : <span className="text-[15px] text-gray-900">QR expires <span className="font-semibold">{fmt(countdown)}</span></span>}
+            </div>
+            <p className="text-[13px] text-gray-700 text-center mt-6 leading-relaxed">By presenting this QR code you consent to share some or all of your driver licence information, including with scanners, venues and law enforcement agencies. They may retain your information in accordance with their business practices and legal requirements.</p>
+            <div className="w-full divider-soft mt-5" />
+            <div className="mt-4 w-full">
+              <p className="text-[15px] font-semibold text-gray-900 mb-3">You&apos;re sharing:</p>
+              <ul className="space-y-2.5">
+                {["Victorian driver licence photo", "Full name, birth date and address", "Licence number, type and expiry date", "Licence status", "Proficiency"].map((t, i) => (
+                  <li key={i} className="text-[13px] text-gray-900 flex items-start gap-3"><span className="text-gray-900 mt-px">•</span>{t}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* barcode view */
+  if (showBarcode) {
+    return (
+      <div className="bg-white h-full flex flex-col animate-fade-in">
+        <div className="flex items-center px-4 py-3">
+          <button onClick={() => setShowBarcode(false)} className="p-2 -ml-2 btn-press"><ChevronLeft className="h-6 w-6 text-gray-700" /></button>
+          <h1 className="flex-1 text-center text-lg font-semibold text-gray-900">Verify Barcode</h1>
+          <button className="p-2 -mr-2 btn-press"><Maximize2 className="h-5 w-5 text-gray-700" /></button>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-start px-6 pt-6">
+          <p className="text-[21px] text-[#6B7280] mb-6 text-center font-bold">Victoria Police barcode</p>
+          <div className="flex justify-center w-full mb-6">
+            <svg viewBox="0 0 280 80" className="w-full max-w-[350px] h-40">
+              {[[0, 2], [4, 1], [7, 3], [12, 1], [15, 2], [20, 4], [26, 1], [29, 2], [33, 1], [36, 3], [42, 2], [46, 1], [50, 4], [56, 1], [59, 2], [64, 3], [70, 1], [73, 2], [78, 4], [84, 1], [87, 2], [92, 1], [95, 3], [100, 2], [105, 4], [111, 1], [115, 2], [120, 1], [124, 3], [130, 2], [134, 1], [138, 4], [145, 1], [148, 2], [153, 3], [159, 1], [163, 2], [168, 4], [175, 1], [178, 2], [183, 1], [186, 3], [192, 2], [197, 4], [204, 1], [208, 2], [213, 1], [216, 3], [222, 2], [227, 1], [230, 4], [236, 2], [240, 1], [244, 3], [249, 2], [254, 1], [257, 2], [262, 4], [269, 1], [273, 2], [278, 2]].map(([x, w], i) => (
+                <rect key={i} x={x} y="0" width={w} height="80" fill="#1C1E21" />
+              ))}
+            </svg>
+          </div>
+          <p className="text-sm text-[#666666] text-center leading-relaxed px-4">The person who scans this code will only validate your licence number. No other data will be shared. Please see our <span className="text-[#008000] underline">privacy policy</span> for more information.</p>
+        </div>
+      </div>
+    );
+  }
+
+  /* main details */
+  return (
+    <div className="bg-white min-h-full relative">
+      <header className="flex items-center px-4 py-3 bg-white animate-header-in">
+        <button onClick={onBack} className="p-2 -ml-2 btn-press"><ChevronLeft className="h-6 w-6 text-gray-700" /></button>
+        <h1 className="flex-1 text-center text-lg font-semibold text-gray-900">View details</h1>
+        <div className="w-10" />
+      </header>
+
+      <div className="flex items-center justify-center gap-2 pb-3 bg-white">
+        <Clock className="h-3.5 w-3.5 text-gray-400" />
+        <p className="text-center text-sm text-gray-500">Last refreshed: <span className="text-gray-700 font-medium">{formatRefreshed()}</span></p>
+        <button onClick={refresh} className="p-1 rounded-full hover:bg-gray-100 transition-colors" title="Refresh licence data"><RefreshCw className={cn("h-4 w-4 text-[#002B49]", refreshing && "animate-spin")} /></button>
+      </div>
+
+      <div className="bg-[#002B49] px-5 py-4 animate-slide-up stagger-1 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-transparent pointer-events-none" />
+        <div className="flex items-center justify-between relative z-10">
+          <div>
+            <p className="text-white text-sm font-semibold tracking-wide">DRIVER LICENCE</p>
+            <p className="text-white/90 text-sm">Victoria Australia</p>
+          </div>
+          <img src="/images/logo.png" alt="VicRoads" className="h-16 object-contain brightness-0 invert" />
+        </div>
+      </div>
+
+      <div className="p-4 animate-card-enter stagger-2 relative overflow-hidden">
+        <img src="/images/background.png" alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent pointer-events-none" />
+        <div className="flex gap-3 items-stretch">
+          {/* ---- PHOTO: tap to change ---- */}
+          <button
+            type="button"
+            onClick={() => photoInputRef.current?.click()}
+            className="w-[calc(50%-6px)] aspect-[3/4] bg-white rounded-lg overflow-hidden flex-shrink-0 relative hologram-effect photo-frame cursor-pointer group"
+          >
+            <img src={userData.facePhoto || "/images/face-photo.png"} alt="Licence holder photo" className="w-full h-full object-cover" />
+            <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+            <span className="absolute bottom-1 right-1 bg-black/50 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">Change</span>
+            {userData.hologramEnabled !== false && <HologramOverlay />}
+          </button>
+
+          <div className="w-[calc(50%-6px)] aspect-square bg-white rounded-lg border border-[#002B49]/20 p-2 flex flex-col justify-between flex-shrink-0 relative shadow-card">
+            {showQR ? (
+              <div className="flex flex-col items-center justify-center h-full animate-qr-reveal cursor-pointer overflow-hidden p-1" onClick={() => setExpandedQR(true)}>
+                <div className={cn("relative flex-shrink-0", expired && "opacity-30")}>
+                  <QRCodeSVG value={qrValue} size={80} level="M" bgColor="#FFFFFF" fgColor="#002B49" />
+                  {expired && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/80 rounded">
+                      <div className="text-center">
+                        <X className="h-5 w-5 text-[#DC2626] mx-auto mb-0.5" />
+                        <p className="text-[9px] text-[#DC2626] font-semibold">Code expired</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 mt-1.5">
+                  {expired
+                    ? <button onClick={(e) => { e.stopPropagation(); setSeed(Math.random().toString(36).substring(2, 15)); setExpired(false); }} className="text-[9px] text-[#002B49] font-medium flex items-center gap-0.5"><RefreshCw className="h-2.5 w-2.5" />Refresh</button>
+                    : <><Clock className="h-2.5 w-2.5 text-[#002B49]" /><span className="text-[9px] text-[#002B49] font-medium">Expires in {fmt(countdown)}</span></>}
+                  <button onClick={(e) => { e.stopPropagation(); setShowQR(false); setExpired(false); }} className="mt-0.5 text-[9px] text-gray-500">Hide</button>
+                  <button onClick={(e) => { e.stopPropagation(); setExpandedQR(true); }} className="mt-0.5 text-[9px] text-[#002B49] font-medium flex items-center gap-0.5"><Maximize2 className="h-2.5 w-2.5" /> Expand</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 flex flex-col items-center justify-center">
+                  <QrCode className="h-8 w-8 text-[#002B49] mb-2" />
+                  <p className="text-[#002B49] text-[10px] text-center leading-tight mb-1">Presenting a QR code allows your licence info to be scanned.</p>
+                  <p className="text-[#002B49] text-[10px] font-semibold text-center">Consent to share?</p>
+                </div>
+                <button onClick={() => mintQR(tab)} disabled={minting} className="w-full bg-[#1C1E21] text-white text-[11px] font-medium py-2 px-2 rounded-full btn-press flex-shrink-0 shadow-card disabled:opacity-50 disabled:cursor-not-allowed">
+                  {minting ? "Minting…" : "Reveal QR code"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+        {error && <p className="text-[11px] text-[#DC2626] mt-2 relative z-10">{error}</p>}
+      </div>
+
+      <div className="px-4 py-4 bg-white animate-card-enter stagger-4">
+        <div className="flex border border-gray-200 rounded-full overflow-hidden shadow-card p-0.5">
+          {(["licence", "identity", "age"] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              className={cn("flex-1 py-2.5 text-sm font-medium segmented-tab-bg capitalize flex items-center justify-center gap-1 rounded-full", tab === t ? "bg-[#002B49] text-white shadow-glow-navy" : "bg-transparent text-gray-500")}>
+              {t === "licence" ? <><Shield className="h-4 w-4" /> Licence</> : t === "identity" ? <><Shield className="h-4 w-4" /> Identity</> : <><ShieldCheck className="h-4 w-4" /> Age</>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === "licence" && (
+        <div className="animate-tab-content">
+          {suspended && (
+            <div className="px-4 pb-4 bg-white">
+              <div className="bg-[#FDF2F2] rounded-lg p-4 flex gap-3">
+                <div className="flex-shrink-0"><div className="w-8 h-8 bg-[#DC2626] rounded-full flex items-center justify-center"><TriangleAlert className="h-4 w-4 text-white" /></div></div>
+                <p className="text-[#9B1C1C] text-sm leading-relaxed">One or more of these licences or permits is not current. It is illegal to drive or ride under this licence or permit.</p>
+              </div>
+            </div>
+          )}
+          <div className="px-4 pb-2 bg-white"><h2 className="text-xl font-bold text-gray-900 tracking-wide">{fullName}</h2></div>
+          <div className="px-4 bg-white">
+            <div className="border-t border-gray-200 pt-4">
+              <div className="grid grid-cols-2 gap-y-4">
+                <div><p className="text-xs text-[#6B7280] mb-1">Licence number</p><p className="text-[15px] font-semibold text-[#111827]">{userData.licenceNumber}</p></div>
+                <div><p className="text-xs text-[#6B7280] mb-1">Expiry</p><p className="text-[15px] font-semibold text-[#111827]">{userData.licenceExpiry}</p></div>
+                <div><p className="text-xs text-[#6B7280] mb-1">Licence type</p><p className="text-[15px] font-semibold text-[#111827]">{userData.licenceType}</p></div>
+                <div><p className="text-xs text-[#6B7280] mb-1">Date of birth</p><p className="text-[15px] font-semibold text-[#111827]">{userData.dateOfBirth}</p></div>
+              </div>
+            </div>
+            <div className="border-t border-gray-200 mt-4 pt-4">
+              <p className="text-xs text-[#6B7280] mb-1">Address</p>
+              <p className="text-[15px] font-semibold text-[#111827]">{userData.address.street}</p>
+              <p className="text-[15px] font-semibold text-[#111827]">{userData.address.suburb} {userData.address.state} {userData.address.postcode}</p>
+            </div>
+            <div className="border-t border-gray-200 mt-4 pt-4">
+              <p className="text-xs text-[#6B7280] mb-3">Signature</p>
+              <div className="border-b border-gray-300 pb-4"><Signature name={fullName} className="w-64 h-16" /></div>
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="bg-[#EFEFEF] px-4 py-3"><p className="text-sm font-semibold text-[#002B49]">Car licence details</p></div>
+            <div className="px-4 pt-4 bg-white">
+              <div className="pb-4">
+                <p className="text-xs text-[#6B7280] mb-1">Licence status</p>
+                <div className="flex items-center gap-2">
+                  {suspended
+                    ? <><TriangleAlert className="h-4 w-4 text-[#DC2626]" /><p className="text-[15px] font-semibold text-[#DC2626]">{userData.licenceStatus}</p></>
+                    : <><span className="relative flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#22C55E] opacity-75" /><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#22C55E]" /></span><p className="text-[15px] font-semibold text-[#22C55E]">{userData.licenceStatus}</p></>}
+                </div>
+              </div>
+              <div className="pb-4"><p className="text-xs text-[#6B7280] mb-1">Proficiency</p><p className="text-[15px] font-semibold text-[#111827]">{userData.proficiency}</p></div>
+              <div className="pb-4"><p className="text-xs text-[#6B7280] mb-1">Issue date</p><p className="text-[15px] font-semibold text-[#111827]">{userData.issueDate}</p></div>
+              <div className="pb-4"><p className="text-xs text-[#6B7280] mb-1">Expiry</p><p className="text-[15px] font-semibold text-[#111827]">{userData.licenceExpiry}</p></div>
+            </div>
+          </div>
+          <div>
+            <div className="bg-[#EFEFEF] px-4 py-3"><p className="text-sm font-semibold text-[#002B49]">Other details</p></div>
+            <div className="px-4 pt-4 bg-white">
+              <div className="pb-4 border-b border-gray-200"><p className="text-xs text-[#6B7280] mb-1">Conditions</p><p className="text-[15px] font-semibold text-[#111827]">{userData.conditions}</p></div>
+              <div className="py-4 border-b border-gray-200">
+                <p className="text-xs text-[#6B7280] mb-1">Card number</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[15px] font-semibold text-[#111827]">{showCardNumber ? userData.cardNumber : "*******"}</p>
+                  <button onClick={() => setShowCardNumber(!showCardNumber)} className="p-2 -mr-2 btn-press">{showCardNumber ? <EyeOff className="h-5 w-5 text-gray-500" /> : <Eye className="h-5 w-5 text-gray-500" />}</button>
+                </div>
+              </div>
+              <div className="py-4">
+                <p className="text-xs text-[#6B7280] mb-3">Victoria Police barcode</p>
+                <div className="flex items-end justify-between">
+                  <svg viewBox="0 0 280 50" className="w-full max-w-[280px] h-12">
+                    {[[0, 2], [4, 1], [7, 3], [12, 1], [15, 2], [20, 4], [26, 1], [29, 2], [33, 1], [36, 3], [42, 2], [46, 1], [50, 4], [56, 1], [59, 2], [64, 3], [70, 1], [73, 2], [78, 4], [84, 1], [87, 2], [92, 1], [95, 3], [100, 2], [105, 4], [111, 1], [115, 2], [120, 1], [124, 3], [130, 2], [134, 1], [138, 4], [145, 1], [148, 2], [153, 3], [159, 1], [163, 2], [168, 4], [175, 1], [178, 2], [183, 1], [186, 3], [192, 2], [197, 4], [204, 1]].map(([x, w], i) => (
+                      <rect key={i} x={x} y="0" width={w} height="50" fill="#1C1E21" />
+                    ))}
+                  </svg>
+                  <button className="p-2 ml-2 btn-press" onClick={() => setShowBarcode(true)}><Maximize2 className="h-5 w-5 text-gray-500" /></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === "identity" && (
+        <div className="animate-tab-content">
+          <div className="bg-white">
+            <div className="px-4 pt-2 pb-4">
+              <div className="flex items-center gap-2 mb-4"><Shield className="h-5 w-5 text-[#002B49]" /><p className="text-sm font-semibold text-[#002B49]">Identity verification</p></div>
+              <div className="mb-4"><p className="text-xs text-[#6B7280] mb-1">Full name</p><p className="text-lg font-bold text-[#111827] tracking-wide">{fullName}</p></div>
+              <div className="border-t border-gray-200 pt-4 mb-4">
+                <p className="text-xs text-[#6B7280] mb-1">Address</p>
+                <p className="text-[15px] font-semibold text-[#111827]">{userData.address.street}</p>
+                <p className="text-[15px] font-semibold text-[#111827]">{userData.address.suburb} {userData.address.state} {userData.address.postcode}</p>
+              </div>
+              <div className="border-t border-gray-200 pt-4">
+                <p className="text-xs text-[#6B7280] mb-3">Signature</p>
+                <div className="border-b border-gray-300 pb-4"><Signature name={fullName} className="w-64 h-16" /></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === "age" && (
+        <div className="animate-tab-content">
+          <div className="bg-white px-4 pt-2 pb-4">
+            <p className="text-base text-gray-400 font-medium mb-6">Age status</p>
+            <div className="flex items-center gap-4">
+              <div className="w-8 h-8 bg-[#22C55E] rounded-full flex items-center justify-center shrink-0"><Check className="h-4 w-4 text-white" strokeWidth={3} /></div>
+              <p className="text-xl font-bold text-[#111827]">Over 18</p>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="h-8 bg-white" />
+    </div>
+  );
+}
+
+/* ----------------------------- Verification of licence view ----------------------------- */
+function VerificationView({ userData, onClose, scannedAt, mode = "licence" }: {
+  userData: UserData; onClose: () => void; scannedAt?: Date; mode?: string;
+}) {
+  const fullName = `${userData.firstName} ${userData.middleName ? userData.middleName + " " : ""}${userData.lastName}`.toUpperCase();
+  const street = (userData.address?.street || "").toUpperCase();
+  const suburb = `${userData.address?.suburb || ""} ${userData.address?.state || ""} ${userData.address?.postcode || ""}`.toUpperCase().replace(/\s+/g, " ").trim();
+  const d = scannedAt || new Date();
+  const isAge = mode === "age";
+  const stamp = `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()]} ${d.getDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()]} ${d.getFullYear()} ${d.getHours() % 12 || 12}:${d.getMinutes().toString().padStart(2, "0")}${d.getHours() > 12 ? "pm" : "am"}`;
+
+  return (
+    <div className="h-full bg-white flex flex-col animate-fade-in">
+      <header className="flex items-center px-2 py-3 bg-white border-b border-gray-100 animate-header-in">
+        <button onClick={onClose} className="p-2 btn-press" aria-label="Back"><ChevronLeft className="h-6 w-6 text-gray-700" /></button>
+        <h1 className="flex-1 text-center text-[17px] font-semibold text-gray-900">Verification of Licence</h1>
+        <button onClick={onClose} className="px-2 text-gray-900 font-medium text-base btn-press">Close</button>
+      </header>
+      <div className="flex-1 overflow-y-auto scrollbar-hide phone-scroll">
+        <div className="flex flex-col items-center pt-6 pb-5 px-6 animate-slide-up">
+          <div className="w-14 h-14 bg-[#22C55E] rounded-full flex items-center justify-center mb-3 shadow-glow-green animate-success-pop"><Check className="h-8 w-8 text-white" strokeWidth={3} /></div>
+          <p className="text-[17px] font-semibold text-gray-900">{isAge ? "Age Verified" : "Licence Verified"}</p>
+        </div>
+        <div className="bg-[#002B49] px-5 py-3.5 flex items-center justify-between relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] via-transparent to-transparent pointer-events-none" />
+          <div className="relative z-10">
+            <p className="text-white text-[13px] font-semibold tracking-wide">DRIVER LICENCE</p>
+            <p className="text-white/90 text-[13px]">Victoria Australia</p>
+          </div>
+          <img src="/images/logo.png" alt="myVicRoads" className="h-8 object-contain brightness-0 invert relative z-10" />
+        </div>
+        <div className="relative bg-[#E6F4EA] px-6 py-8 flex justify-center overflow-hidden">
+          <div className="absolute inset-0 opacity-[0.10] pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 18% 28%, #ffffff 0, transparent 38%), radial-gradient(circle at 82% 72%, #ffffff 0, transparent 34%)" }} />
+          <div className="w-40 h-40 bg-white rounded-lg overflow-hidden shadow-card-elevated relative photo-frame">
+            <img src={userData.facePhoto || "/images/face-photo.png"} alt="Licence holder" className="w-full h-full object-cover" />
+          </div>
+        </div>
+        <div className="px-6 pt-5 pb-2"><p className="text-[19px] font-bold text-gray-900 tracking-tight">{fullName}</p></div>
+        {(mode === "licence" || mode === "identity") && street && (
+          <div className="px-6 pb-4">
+            <p className="text-[13px] text-gray-500 mb-0.5">Address</p>
+            <p className="text-[15px] text-gray-900 font-medium leading-snug">{street}</p>
+            {suburb && <p className="text-[15px] text-gray-900 font-medium leading-snug">{suburb}</p>}
+          </div>
+        )}
+        {isAge && (
+          <div className="px-6 pb-4">
+            <div className="bg-[#E6F4EA] border border-[#22C55E]/30 rounded-xl px-4 py-3 flex items-center gap-3">
+              <div className="w-9 h-9 bg-[#22C55E] rounded-full flex items-center justify-center flex-shrink-0"><Check className="h-5 w-5 text-white" strokeWidth={3} /></div>
+              <div>
+                <p className="text-[15px] font-semibold text-gray-900">Over 18 confirmed</p>
+                <p className="text-[12px] text-gray-500">This person is 18 years or older</p>
+              </div>
+            </div>
+          </div>
+        )}
+        {mode === "licence" && (
+          <>
+            <div className="bg-[#F3F4F6] px-6 py-2.5"><p className="text-[13px] text-gray-700 font-medium">{(userData.licenceType || "Car").charAt(0).toUpperCase() + (userData.licenceType || "Car").slice(1).toLowerCase()} licence details</p></div>
+            <div className="px-6 pt-4 pb-2 flex items-center justify-between">
+              <p className="text-[13px] text-gray-500">Licence status</p>
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 bg-[#22C55E] rounded-full flex items-center justify-center"><Check className="h-3 w-3 text-white" strokeWidth={3} /></div>
+                <span className="text-[15px] text-gray-900 font-semibold">{userData.licenceStatus || "Current"}</span>
+              </div>
+            </div>
+            <div className="mx-6 h-px bg-gray-100" />
+            <div className="px-6 py-3 flex items-center justify-between"><p className="text-[13px] text-gray-500">Proficiency</p><span className="text-[15px] text-gray-900 font-semibold">{userData.proficiency || "Full"}</span></div>
+            {userData.licenceNumber && (<><div className="mx-6 h-px bg-gray-100" /><div className="px-6 py-3 flex items-center justify-between"><p className="text-[13px] text-gray-500">Licence number</p><span className="text-[15px] text-gray-900 font-semibold">{userData.licenceNumber}</span></div></>)}
+            {userData.licenceExpiry && (<><div className="mx-6 h-px bg-gray-100" /><div className="px-6 py-3 flex items-center justify-between"><p className="text-[13px] text-gray-500">Expiry</p><span className="text-[15px] text-gray-900 font-semibold">{userData.licenceExpiry}</span></div></>)}
+          </>
+        )}
+        <div className="px-6 pt-4 pb-2">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-50 border border-gray-100">
+            {mode === "licence" || mode === "identity" ? <Shield className="h-3 w-3 text-gray-500" /> : <ShieldCheck className="h-3 w-3 text-gray-500" />}
+            <span className="text-[11px] text-gray-500 font-medium">{mode === "licence" ? "Full driver licence" : mode === "identity" ? "Identity only" : "Proof of age"} shared</span>
+          </div>
+        </div>
+        <div className="bg-[#F3F4F6] px-6 py-4 mt-4">
+          <p className="text-[12px] text-gray-500 mb-1.5">Details verified with</p>
+          <img src="/images/logo.png" alt="myVicRoads" className="h-6 object-contain mb-1.5" />
+          <p className="text-[12px] text-gray-500">{stamp}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------- Verify (scan) ----------------------------- */
+function VerifyLicence({ onBack, demoHolderId, simulatedToken }: {
+  onBack: () => void; demoHolderId: string | null; simulatedToken: string | null;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [status, setStatus] = useState<"requesting" | "active" | "scanning" | "denied" | "success">(() => (simulatedToken ? "scanning" : "requesting"));
+  const [progress, setProgress] = useState(0);
+  const [preview, setPreview] = useState<UserData | null>(null);
+  const [mode, setMode] = useState("licence");
+
+  const resolveToken = useCallback(async (token: string) => {
+    try {
+      const res = await fetch(`/api/verify?t=${encodeURIComponent(token)}`);
+      if (!res.ok) return setStatus("denied");
+      const data = await res.json();
+      if (!data || data.valid === false) return setStatus("denied");
+      const m = data.mode === "identity" || data.mode === "age" ? data.mode : "licence";
+      setMode(m);
+      setPreview({
+        firstName: data.firstName, middleName: data.middleName ?? "", lastName: data.lastName,
+        dateOfBirth: data.dateOfBirth ?? "", licenceNumber: data.licenceNumber ?? "", licenceExpiry: data.licenceExpiry ?? "",
+        licenceType: data.licenceType ?? "Car", proficiency: data.proficiency ?? "Full", issueDate: data.issueDate ?? "",
+        address: data.address ?? { street: "", suburb: "", state: "", postcode: "" }, facePhoto: data.facePhoto ?? null,
+        conditions: data.conditions ?? "", cardNumber: data.cardNumber ?? "", licenceStatus: data.licenceStatus ?? "Current",
+        hologramEnabled: true,
+      });
+      setStatus("success");
+    } catch { setStatus("denied"); }
+  }, []);
+
+  useEffect(() => {
+    if (!simulatedToken) return;
+    setProgress(0); setStatus("scanning");
+    const t = setInterval(() => setProgress((p) => { if (p >= 100) { clearInterval(t); resolveToken(simulatedToken); return 100; } return p + 2; }), 50);
+    return () => clearInterval(t);
+  }, [simulatedToken, resolveToken]);
+
+  useEffect(() => {
+    if (simulatedToken) return;
+    let stream: MediaStream | null = null;
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } });
+        if (videoRef.current) { videoRef.current.srcObject = stream; setStatus("active"); }
+      } catch { setStatus("denied"); }
+    })();
+    return () => { stream?.getTracks().forEach((t) => t.stop()); };
+  }, [simulatedToken]);
+
+  const simulateScan = useCallback(async () => {
+    if (!demoHolderId) return setStatus("denied");
+    try {
+      const res = await fetch("/api/token", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ holderId: demoHolderId, mode: "licence" }) });
+      if (!res.ok) return setStatus("denied");
+      const data = await res.json();
+      if (!data?.token) return setStatus("denied");
+      const tok = data.token; setProgress(0); setStatus("scanning");
+      const t = setInterval(() => setProgress((p) => { if (p >= 100) { clearInterval(t); resolveToken(tok); return 100; } return p + 2; }), 50);
+    } catch { setStatus("denied"); }
+  }, [demoHolderId, resolveToken]);
+
+  if (status === "success" && preview) return <VerificationView userData={preview} onClose={onBack} scannedAt={new Date()} mode={mode} />;
+
+  if (status === "denied") {
+    return (
+      <div className="h-full bg-white flex flex-col">
+        <header className="flex items-center px-4 py-3 bg-white">
+          <button onClick={onBack} className="p-2 -ml-2 btn-press"><ChevronLeft className="h-6 w-6 text-gray-700" /></button>
+          <h1 className="flex-1 text-center text-lg font-semibold text-gray-900">Verify Licence</h1>
+          <div className="w-10" />
+        </header>
+        <div className="flex-1 flex flex-col items-center justify-center px-8">
+          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4"><Camera className="w-10 h-10 text-gray-400" /></div>
+          <h2 className="text-xl font-semibold text-[#1C1E21] mb-2">Camera Access Required</h2>
+          <p className="text-gray-500 text-center text-sm mb-6">To scan a digital licence, please allow camera access in your browser settings.</p>
+          <button onClick={() => { setStatus("requesting"); navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then((s) => { if (videoRef.current) { videoRef.current.srcObject = s; setStatus("active"); } }).catch(() => setStatus("denied")); }}
+            className="bg-[#002B49] text-white font-semibold py-3 px-8 rounded-xl btn-primary-dark">Try Again</button>
+          {demoHolderId && <button onClick={simulateScan} className="mt-3 bg-[#22C55E] text-white font-semibold py-3 px-8 rounded-xl btn-primary-green">Simulate scan (demo)</button>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full bg-black flex flex-col relative">
+      <style>{`
+        @keyframes scanLine { 0%{top:0%;} 50%{top:85%;} 100%{top:0%;} }
+        @keyframes scanPulse { 0%,100%{opacity:.3;} 50%{opacity:.8;} }
+      `}</style>
+      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative z-10 flex items-center px-4 py-3">
+        <button onClick={onBack} className="p-2 -ml-2 btn-press z-20"><X className="h-6 w-6 text-white" /></button>
+        <h1 className="flex-1 text-center text-lg font-semibold text-white">Scan Digital Licence</h1>
+        <div className="w-10" />
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+        <div className="relative w-[260px] h-[340px]">
+          <div className="absolute top-0 left-0 w-10 h-10 border-t-3 border-l-3 border-white rounded-tl-lg" />
+          <div className="absolute top-0 right-0 w-10 h-10 border-t-3 border-r-3 border-white rounded-tr-lg" />
+          <div className="absolute bottom-0 left-0 w-10 h-10 border-b-3 border-l-3 border-white rounded-bl-lg" />
+          <div className="absolute bottom-0 right-0 w-10 h-10 border-b-3 border-r-3 border-white rounded-br-lg" />
+          <div className="absolute inset-3 bg-white/5 rounded-lg" />
+          {status === "scanning" && (
+            <>
+              <div className="absolute left-3 right-3 h-0.5 bg-[#22C55E] shadow-[0_0_12px_rgba(34,197,94,0.6)]" style={{ animation: "scanLine 2s ease-in-out infinite" }} />
+              <div className="absolute -bottom-8 left-0 right-0">
+                <div className="h-1 bg-white/20 rounded-full overflow-hidden"><div className="h-full bg-[#22C55E] rounded-full transition-all duration-100" style={{ width: `${progress}%` }} /></div>
+                <p className="text-white text-xs text-center mt-2">Scanning... {progress}%</p>
+              </div>
+            </>
+          )}
+          {status === "active" && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3 animate-fade-in">
+                <QrCode className="w-12 h-12 text-white/40" />
+                <p className="text-white/60 text-sm text-center px-4">Align the QR code or barcode within the frame</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="absolute bottom-0 left-0 right-0 z-10 pb-8 pt-4 bg-gradient-to-t from-black/80 to-transparent">
+        <div className="flex flex-col items-center gap-3">
+          {status === "active" && (
+            <button onClick={() => status === "active" && setStatus("scanning")} className="w-16 h-16 bg-[#22C55E] rounded-full flex items-center justify-center shadow-glow-green btn-press active:bg-[#16A34A]"><Zap className="w-7 h-7 text-white" /></button>
+          )}
+          {status === "scanning" && (
+            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-[#22C55E] rounded-full animate-pulse" /><p className="text-white text-sm font-medium">Scanning in progress...</p></div>
+          )}
+          <p className="text-white/60 text-xs text-center px-8">Point the camera at the QR code on the person&apos;s digital licence to verify their identity</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------- Main app ----------------------------- */
+export default function Page() {
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [splash, setSplash] = useState(false);
+  const [screen, setScreen] = useState("home");
+  const [activeTab, setActiveTab] = useState("home");
+  const [navKey, setNavKey] = useState(0);
+  const [licenceTaps, setLicenceTaps] = useState(0);
+  const tapTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [holderId, setHolderId] = useState<string | null>(null);
+  const [demoHolderId, setDemoHolderId] = useState<string | null>(null);
+  const [simulatedToken, setSimulatedToken] = useState<string | null>(null);
+
+  const [userData, setUserData] = useState<UserData>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) { const parsed = JSON.parse(raw); return { ...DEFAULT_USER, ...parsed, address: { ...DEFAULT_USER.address, ...(parsed.address || {}) } }; }
+    } catch (e) { console.warn("Failed to load saved user data:", e); }
+    return DEFAULT_USER;
+  });
+
+  useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(userData)); } catch (e) { console.warn("Failed to save user data:", e); } }, [userData]);
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/holder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ holderKey: "me", ...userData }) });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data?.holderId) setHolderId(data.holderId);
+      } catch (e) { console.warn("[holder] sync failed", e); }
+    })();
+    return () => { cancelled = true; };
+  }, [loggedIn, userData]);
+
+  useEffect(() => {
+    if (!loggedIn || demoHolderId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/holder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(NAVREET_DEMO) });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data?.holderId) setDemoHolderId(data.holderId);
+      } catch (e) { console.warn("[holder] seed Navreet failed", e); }
+    })();
+    return () => { cancelled = true; };
+  }, [loggedIn, demoHolderId]);
+
+  const save = (patch: Partial<UserData>) => setUserData((prev) => ({ ...prev, ...patch }));
+  const navigate = (s: string) => { setScreen(s); setNavKey((k) => k + 1); };
+  const goBack = () => { setSimulatedToken(null); setScreen(activeTab); };
+
+  const onTabChange = (tab: string) => {
+    if (tab === "licence") {
+      if (tapTimeout.current) clearTimeout(tapTimeout.current);
+      const n = licenceTaps + 1;
+      setLicenceTaps(n);
+      tapTimeout.current = setTimeout(() => setLicenceTaps(0), 1200);
+      if (n >= 5) { setLicenceTaps(0); if (tapTimeout.current) clearTimeout(tapTimeout.current); setScreen("add-licence"); setNavKey((k) => k + 1); return; }
+    } else {
+      if (tapTimeout.current) clearTimeout(tapTimeout.current);
+      setLicenceTaps(0);
+    }
+    setActiveTab(tab); setScreen(tab); setNavKey((k) => k + 1);
+  };
+
+  return (
+    <PhoneFrame
+      statusBarBg={loggedIn ? (screen === "licence-details" ? "bg-white" : screen === "verify-licence" ? "bg-black" : "bg-[#E8ECEF]") : "bg-[#F7F7F7]"}
+      statusBarText={screen === "verify-licence" ? "text-white" : "text-black"}
+      time="1:30"
+    >
+      {splash ? (
+        <div className="h-full bg-white flex flex-col items-center justify-center animate-splash-logo">
+          <img src="/images/logo.png" alt="VicRoads" className="h-24 object-contain mb-6" />
+          <div className="w-8 h-8 border-2 border-[#002B49] border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <div key={navKey} className="h-full animate-page-in">
+          {!loggedIn ? (
+            <Login onLogin={() => { setSplash(true); setTimeout(() => { setLoggedIn(true); setSplash(false); }, 1200); }} />
+          ) : screen === "licence-details" ? (
+            <LicenceDetails onBack={goBack} userData={userData} holderId={holderId} onPhotoChange={(url) => save({ facePhoto: url })} />
+          ) : screen === "add-licence" ? (
+            <AddEditLicence onBack={goBack} userData={userData} onSave={save} />
+          ) : screen === "edit-profile" ? (
+            <EditProfile onBack={goBack} userData={userData} onSave={save} />
+          ) : screen === "verify-licence" ? (
+            <VerifyLicence onBack={goBack} demoHolderId={demoHolderId} simulatedToken={simulatedToken} />
+          ) : screen === "demerit-points" ? (
+            <DemeritPoints onBack={goBack} />
+          ) : screen === "licence" ? (
+            <LicenceTab onNavigate={navigate} activeTab={activeTab} onTabChange={onTabChange} />
+          ) : screen === "profile" ? (
+            <Profile onLogout={() => { setLoggedIn(false); setScreen("home"); setActiveTab("home"); setLicenceTaps(0); if (tapTimeout.current) clearTimeout(tapTimeout.current); setNavKey((k) => k + 1); }} activeTab={activeTab} onTabChange={onTabChange} onNavigate={navigate} />
+          ) : (
+            <Home onNavigate={navigate} activeTab={activeTab} onTabChange={onTabChange} userData={userData} />
+          )}
+        </div>
+      )}
+    </PhoneFrame>
+  );
+}
